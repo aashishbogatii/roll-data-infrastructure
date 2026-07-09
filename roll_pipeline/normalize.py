@@ -12,6 +12,7 @@ _SUFFIX = {
     "ROAD": "RD", "LANE": "LN", "COURT": "CT", "CIRCLE": "CIR",
     "PLACE": "PL", "TERRACE": "TER", "PARKWAY": "PKWY", "HIGHWAY": "HWY",
     "TRAIL": "TRL", "SQUARE": "SQ",
+    "WY": "WAY", "BL": "BLVD", "BLV": "BLVD", "AV": "AVE",
 }
 _DIRECTIONAL = {
     "NORTH": "N", "SOUTH": "S", "EAST": "E", "WEST": "W",
