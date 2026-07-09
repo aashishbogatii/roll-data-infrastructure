@@ -1,0 +1,20 @@
+# Source catalog for ingest. Each entry = one raw roll file: where it is, how
+# to read it, and which transform cleans it. county and roll_type come from the
+# transform module (single source), so they are not repeated here.
+#
+# Paths are relative to ROLL_SOURCE_ROOT (local dir or s3://...), so the same
+# registry runs local or in cloud by switching that one env var. An absolute or
+# s3:// path here overrides the root for that entry.
+sources:
+  - name: sacramento_2026_secured
+    roll_year: 2026
+    path: sacramento/2026/secured_roll_public.xlsx
+    format: xlsx
+    transform: sacramento_secured
+    parcels: sacramento/2026/sacramento_parcels.parquet
+
+  - name: sacramento_2026_unsecured
+    roll_year: 2026
+    path: sacramento/2026/2026_UNSECURED_PUBLIC_FILE.xlsx
+    format: xlsx
+    transform: sacramento_unsecured
