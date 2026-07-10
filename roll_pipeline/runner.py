@@ -55,13 +55,16 @@ def load_sources(registry_path: pathlib.Path = _REGISTRY) -> list[dict]:
 
 def _read_raw(entry: dict, path: str) -> pd.DataFrame:
     """Read the raw file at `path` as text (dtype=str) so codes keep leading
-    zeros. Path may be local or s3:// (read via s3fs)."""
+    zeros. Local xlsx use the fast calamine engine; s3:// falls back to the
+    default engine, since calamine can't stream over s3fs."""
     fmt = entry["format"]
     if fmt == "xlsx":
+        engine = None if "://" in path else "calamine"
         return pd.read_excel(
             path,
             sheet_name=entry.get("sheet", 0),
             dtype=str,
+            engine=engine,
         )
     if fmt == "csv":
         return pd.read_csv(path, dtype=str)
@@ -88,11 +91,27 @@ def run_source(entry: dict, out_root: str) -> str:
     )
 
     if entry.get("parcels"):
-        from .enrich import enrich_by_apn
+        from .enrich import enrich_geometry
 
         parcels = _resolve(entry["parcels"])
         logger.info("[%s] enriching from %s", name, parcels)
-        df = enrich_by_apn(df, parcels)
+        df = enrich_geometry(df, parcels)
+
+    char = entry.get("characteristics")
+    if char:
+        from .enrich import enrich_characteristics
+
+        char_src = _resolve(char["path"])
+        logger.info("[%s] characteristics: reading %s", name, char_src)
+        char_tf = get_transform(char["transform"])
+        char_df = char_tf.clean(_read_raw(char, char_src))
+        char_tf.validate(char_df)
+        df = enrich_characteristics(df, char_df)
+        matched = char_df["apn_normalized"].nunique()
+        logger.info(
+            "[%s] characteristics: joined %d fields for %s parcels",
+            name, len(char_df.columns) - 1, f"{matched:,}",
+        )
 
     dest = write_parquet(
         df,
@@ -134,5 +153,4 @@ def main(only: str | None = None) -> list[str]:
 if __name__ == "__main__":
     import sys
 
-    # Optional positional arg: a single source name to run (default: all).
     main(sys.argv[1] if len(sys.argv) > 1 else None)

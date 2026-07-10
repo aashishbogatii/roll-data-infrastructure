@@ -12,6 +12,10 @@ sources:
     format: xlsx
     transform: sacramento_secured
     parcels: sacramento/2026/sacramento_parcels.parquet
+    characteristics:
+      path: sacramento/2026/Characteristics Roll 2026.xlsx
+      format: xlsx
+      transform: sacramento_characteristics
 
   - name: sacramento_2026_unsecured
     roll_year: 2026

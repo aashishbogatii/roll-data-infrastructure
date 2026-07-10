@@ -31,6 +31,14 @@ def col_int(s: pd.Series) -> pd.Series:
     return pd.to_numeric(cleaned, errors="coerce").astype("Int64")
 
 
+def col_float(s: pd.Series) -> pd.Series:
+    """Real number -> nullable Float64; bad/blank -> NA (for .5 baths, acres)."""
+    cleaned = (
+        s.astype("string").str.replace(",", "", regex=False).str.strip()
+    )
+    return pd.to_numeric(cleaned, errors="coerce").astype("Float64")
+
+
 def col_yyyymmdd(s: pd.Series) -> pd.Series:
     """Parse a 20140515-style column -> datetime64."""
     digits = (
