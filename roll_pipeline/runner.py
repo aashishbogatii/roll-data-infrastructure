@@ -59,12 +59,12 @@ def _read_raw(entry: dict, path: str) -> pd.DataFrame:
     default engine, since calamine can't stream over s3fs."""
     fmt = entry["format"]
     if fmt == "xlsx":
-        engine = None if "://" in path else "calamine"
+  
         return pd.read_excel(
             path,
             sheet_name=entry.get("sheet", 0),
             dtype=str,
-            engine=engine,
+            engine="calamine",
         )
     if fmt == "csv":
         return pd.read_csv(path, dtype=str)
