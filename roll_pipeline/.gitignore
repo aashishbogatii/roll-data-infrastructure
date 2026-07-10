@@ -1,5 +1,4 @@
 scripts/
-tests/
 out/
 .venv/
 roll_pipeline_flow.draw.io
