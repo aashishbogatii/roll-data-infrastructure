@@ -24,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 def _resolve(path: str) -> str:
     """Full path for a registry entry. Relative paths are joined to SOURCE_ROOT
-    (local dir or s3://...); absolute local (C:/...) or s3:// paths are used
-    unchanged -- so the same registry runs local or in cloud.
     """
     if "://" in path or path.startswith("/") or (len(path) > 1 and path[1] == ":"):
         return path
@@ -55,8 +53,8 @@ def load_sources(registry_path: pathlib.Path = _REGISTRY) -> list[dict]:
 
 def _read_raw(entry: dict, path: str) -> pd.DataFrame:
     """Read the raw file at `path` as text (dtype=str) so codes keep leading
-    zeros. Local xlsx use the fast calamine engine; s3:// falls back to the
-    default engine, since calamine can't stream over s3fs."""
+    zeros.
+    """
     fmt = entry["format"]
     if fmt == "xlsx":
   
