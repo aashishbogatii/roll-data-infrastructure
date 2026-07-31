@@ -10,6 +10,100 @@ from ..parsers import col_date, col_int, col_str, col_title
 COUNTY = "sacramento"
 ROLL_TYPE = "secured"
 
+# Land-use code -> description. Residential (A) by 3- then 2-char prefix,
+# everything else by first-char major category.
+_LAND_USE_RES3 = {  # A[1-4] + form/lot variant in the 3rd char
+    "A1A": "Single Family Residence", "A1B": "Single Family Residence",
+    "A1C": "Single Family Residence (Rural, <2 ac)",
+    "A1D": "Single Family Residence (Rural, 2-5 ac)",
+    "A1E": "Single Family Residence (Rural, >5 ac)",
+    "A1F": "Condominium", "A1G": "Planned Unit Development",
+    "A1H": "Row House", "A1J": "Half Plex",
+    "A2A": "Two Family (2 Single Family)", "A2B": "Duplex",
+    "A2X": "Condominium (Two Family)", "A2Y": "PUD (Two Family)",
+    "A3A": "Three Family (3 Single Family)",
+    "A3B": "Three Family (1 Single Family)", "A3C": "Triplex",
+    "A4A": "Four Family (4 Single Family)",
+    "A4B": "Four Family (1 SF + 1 Triplex)",
+    "A4C": "Four Family (2 SF + 1 Duplex)",
+    "A4D": "Four Family (2 Duplexes)", "A4E": "Fourplex",
+}
+_LAND_USE_RES2 = {  # residential types keyed by the first two chars
+    "A1": "Single Family Residence", "A2": "Two Family",
+    "A3": "Three Family", "A4": "Four Family",
+    "AD": "Residential Conversion", "AE": "Low-rise Apartment",
+    "AF": "High-rise Apartment", "AG": "Apartment Court (>4 units)",
+    "AH": "Mobile Home Park", "AJ": "Hotel", "AK": "Boarding House",
+    "AL": "Rooming House", "AM": "Sorority/Fraternity House", "AN": "Motel",
+    "AQ": "Common Area (Condo/PUD)", "AR": "Bed & Breakfast Inn",
+    "AT": "Mobile Home",
+}
+_LAND_USE_MAJOR = {  # first char -> general category (non-residential)
+    "A": "Residential (Other)", "B": "Retail/Commercial", "C": "Office",
+    "D": "Personal Care/Health", "E": "Church/Welfare", "F": "Recreational",
+    "G": "Industrial", "H": "Agriculture", "I": "Vacant Land",
+    "M": "Miscellaneous", "W": "Public/Utilities",
+}
+
+
+def _land_use_desc(code: object) -> str | None:
+    """Decode a 6-char land-use code: residential in detail, else its category."""
+    if code is None or pd.isna(code):
+        return None
+    c = str(code).strip().upper()
+    if not c:
+        return None
+    return (
+        _LAND_USE_RES3.get(c[:3])
+        or _LAND_USE_RES2.get(c[:2])
+        or _LAND_USE_MAJOR.get(c[:1])
+    )
+
+
+# Land-use prefixes by valuation approach: 1-4 unit residential -> cma;
+# apartments/lodging and B/C/D/F/G commercial majors -> income.
+_CMA_PREFIXES = frozenset({"A1", "A2", "A3", "A4", "AT", "AD"})
+_INCOME_PREFIXES = frozenset({
+    "AE", "AF", "AG", "AH", "AJ", "AK", "AL", "AM", "AN", "AR",
+})
+_INCOME_MAJORS = frozenset({"B", "C", "D", "F", "G"})
+_SPECIAL_MAJORS = frozenset({"H", "E", "M", "W"})
+
+
+def _code_units(code: object) -> int | None:
+    """Unit count from code positions 3-5 ('AF047M' -> 47); non-digit/000 -> None."""
+    if code is None or pd.isna(code):
+        return None
+    digits = str(code).strip()[2:5]
+    if not digits.isdigit():
+        return None
+    return int(digits) or None
+
+
+def _valuation_approach(code: object) -> str | None:
+    """Route a parcel to cma / income / land / special from its land-use code."""
+    if code is None or pd.isna(code):
+        return None
+    c = str(code).strip().upper()
+    if not c:
+        return None
+    major, prefix = c[:1], c[:2]
+    if major == "I":                                # vacant -> land comps
+        return "land"
+    if major in _SPECIAL_MAJORS or prefix == "AQ":  # ag/church/misc/common area
+        return "special"
+    if prefix in _CMA_PREFIXES:                     # 1-4 unit residential
+        return "cma"
+    if prefix in _INCOME_PREFIXES:
+        units = _code_units(c)                      # a sub-5-unit building
+        if units is not None and units <= 4:        # still trades on comps
+            return "cma"
+        return "income"
+    if major in _INCOME_MAJORS:                     # retail/office/health/rec/ind
+        return "income"
+    return "special"
+
+
 EXPECTED_COLUMNS = (
     "MAPB", "PG", "PCL", "PSUB", "TAX_RATE_AREA",
     "SITUS_NUMBER", "SITUS_CITY", "SITUS_STREET", "SITUS_ZIP",
@@ -80,7 +174,8 @@ COLUMN_ORDER = (
     # tax
     "tax_rate_area",
     # classification
-    "zoning", "land_use_code", "neighborhood",
+    "zoning", "land_use_code", "land_use_desc", "valuation_approach", "units",
+    "neighborhood",
     # ownership
     "owner_name", "owner_code", "care_of",
     # mailing
@@ -125,9 +220,12 @@ def clean(df: pd.DataFrame, *, roll_year: int) -> pd.DataFrame:
     out["total_assessed_value"] = (
         out[list(_TOTAL_PARTS)].sum(axis=1, min_count=1).astype("Int64")
     )
-    out["assessment_year"] = (
-        out["value_date"].dt.year.fillna(roll_year).astype("Int64")
+    out["land_use_desc"] = out["land_use_code"].map(_land_use_desc).astype("string")
+    out["units"] = out["land_use_code"].map(_code_units).astype("Int64")
+    out["valuation_approach"] = (
+        out["land_use_code"].map(_valuation_approach).astype("string")
     )
+
     cols = [c for c in COLUMN_ORDER if c in out.columns]
     cols += [c for c in out.columns if c not in COLUMN_ORDER]
     return out[cols]

@@ -4,4 +4,7 @@ layer/
 __pycache__/
 **/__pycache__/
 *.pyc
+scripts/
+tests/
+
 

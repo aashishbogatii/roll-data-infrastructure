@@ -24,11 +24,12 @@ def col_numstr(s: pd.Series) -> pd.Series:
 
 
 def col_int(s: pd.Series) -> pd.Series:
-    """Whole-number -> nullable Int64; bad/blank -> NA (0 is kept)."""
+    """Whole-number -> nullable Int64; bad/blank -> NA (0 is kept).
+    """
     cleaned = (
         s.astype("string").str.replace(",", "", regex=False).str.strip()
     )
-    return pd.to_numeric(cleaned, errors="coerce").astype("Int64")
+    return pd.to_numeric(cleaned, errors="coerce").round().astype("Int64")
 
 
 def col_float(s: pd.Series) -> pd.Series:
@@ -48,5 +49,5 @@ def col_yyyymmdd(s: pd.Series) -> pd.Series:
 
 
 def col_date(s: pd.Series) -> pd.Series:
-    """Parse a datetime/ISO-string column -> datetime64."""
-    return pd.to_datetime(s, errors="coerce")
+    """Parse a datetime/ISO-string column -> date (no time component)."""
+    return pd.to_datetime(s, errors="coerce").dt.date

@@ -3,7 +3,7 @@
 # transform module (single source), so they are not repeated here.
 
 sources:
-  - name: sacramento_2026_secured
+  - name: sacramento
     roll_year: 2026
     path: sacramento/2026/secured_roll_public.xlsx
     format: xlsx
@@ -13,9 +13,19 @@ sources:
       path: sacramento/2026/Characteristics Roll 2026.xlsx
       format: xlsx
       transform: sacramento_characteristics
+    transfers:
+      path: sacramento/2026/Two-Year Transfer List 07.01.26.xlsx
+      format: xlsx
+      transform: sacramento_transfers
 
   - name: sacramento_2026_unsecured
     roll_year: 2026
     path: sacramento/2026/2026_UNSECURED_PUBLIC_FILE.xlsx
     format: xlsx
     transform: sacramento_unsecured
+
+  - name: placer
+    roll_year: 2026
+    path: placer/2026
+    transform: placer_secured
+    parcels: placer/2026/placer_parcels.parquet

@@ -29,8 +29,14 @@ def write_parquet(
     if _SORT_KEY in df.columns:
         df = df.sort_values(_SORT_KEY, kind="stable").reset_index(drop=True)
     dest_dir = f"{out_root.rstrip('/')}/{county}/{roll_year}"
-    if not out_root.startswith("s3://"):
-        Path(dest_dir).mkdir(parents=True, exist_ok=True)
     path = f"{dest_dir}/{basename}.parquet"
-    df.to_parquet(path, index=False, row_group_size=_ROW_GROUP_SIZE)
+    if out_root.startswith("s3://"):
+        import s3fs
+
+        fs = s3fs.S3FileSystem()
+        with fs.open(path, "wb") as f:
+            df.to_parquet(f, index=False, row_group_size=_ROW_GROUP_SIZE)
+    else:
+        Path(dest_dir).mkdir(parents=True, exist_ok=True)
+        df.to_parquet(path, index=False, row_group_size=_ROW_GROUP_SIZE)
     return path

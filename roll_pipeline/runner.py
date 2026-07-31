@@ -38,11 +38,12 @@ def get_transform(name: str) -> ModuleType:
         raise ValueError(
             f"No transform module 'transforms/{name}.py' for {name!r}"
         ) from e
-    for fn in ("clean", "validate"):
-        if not hasattr(module, fn):
-            raise ValueError(
-                f"transforms/{name}.py is missing required function {fn}()"
-            )
+    if not hasattr(module, "validate"):
+        raise ValueError(f"transforms/{name}.py is missing validate()")
+    # single-file transforms expose clean(df); multi-file ones expose
+    # build(source_root, roll_year) and read their own files.
+    if not (hasattr(module, "clean") or hasattr(module, "build")):
+        raise ValueError(f"transforms/{name}.py must expose clean() or build()")
     return module
 
 
@@ -77,11 +78,15 @@ def run_source(entry: dict, out_root: str) -> str:
     transform = get_transform(entry["transform"])
 
     src = _resolve(entry["path"])
-    logger.info("[%s] reading %s", name, src)
-    raw = _read_raw(entry, src)
-    logger.info("[%s] read %s raw rows", name, f"{len(raw):,}")
-
-    df = transform.clean(raw, roll_year=entry["roll_year"])
+    if hasattr(transform, "build"):
+        # multi-file source: the transform reads its own files under src
+        logger.info("[%s] building from %s", name, src)
+        df = transform.build(src, entry["roll_year"])
+    else:
+        logger.info("[%s] reading %s", name, src)
+        raw = _read_raw(entry, src)
+        logger.info("[%s] read %s raw rows", name, f"{len(raw):,}")
+        df = transform.clean(raw, roll_year=entry["roll_year"])
     transform.validate(df)
     logger.info(
         "[%s] cleaned + validated -> %s rows, %d cols",
@@ -109,6 +114,22 @@ def run_source(entry: dict, out_root: str) -> str:
         logger.info(
             "[%s] characteristics: joined %d fields for %s parcels",
             name, len(char_df.columns) - 1, f"{matched:,}",
+        )
+
+    xfer = entry.get("transfers")
+    if xfer:
+        from .enrich import enrich_transfers
+
+        xfer_src = _resolve(xfer["path"])
+        logger.info("[%s] transfers: reading %s", name, xfer_src)
+        xfer_tf = get_transform(xfer["transform"])
+        xfer_df = xfer_tf.clean(_read_raw(xfer, xfer_src))
+        xfer_tf.validate(xfer_df)
+        df = enrich_transfers(df, xfer_df)
+        matched = df["last_sale_price"].notna().sum()
+        logger.info(
+            "[%s] transfers: joined %d fields, %s of %s parcels have a sale",
+            name, len(xfer_df.columns) - 1, f"{matched:,}", f"{len(df):,}",
         )
 
     dest = write_parquet(

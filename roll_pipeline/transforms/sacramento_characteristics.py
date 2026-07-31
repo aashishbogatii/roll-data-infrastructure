@@ -1,9 +1,7 @@
-"""Sacramento CHARACTERISTICS: raw xlsx -> building detail columns by APN.
+"""Sacramento characteristics -> building-detail columns by APN.
 
-Not a standalone roll source: clean() returns apn_normalized plus only the
-building characteristics fields that are NOT already in the secured roll,
-for an in-memory LEFT join in the runner (see enrich.enrich_characteristics).
-No COUNTY/ROLL_TYPE stamping and no write step -- roll duplicates are omitted.
+Enrichment only: clean() returns apn_normalized + the characteristics fields,
+LEFT-joined onto the secured roll by the runner (enrich_characteristics).
 """
 
 from __future__ import annotations
@@ -17,7 +15,7 @@ from ..parsers import col_float, col_int, col_str
 FIELD_MAP = {
     "quality_class": ("QUALITY_CLASS", col_str),
     "condition": ("CONDITION", col_str),
-    "effective_year": ("EFFECTIVE_YEAR", col_int),
+    "year_built": ("EFFECTIVE_YEAR", col_int),
     "stories": ("NUMBER_OF_STORIES", col_int),
     "roof_cover": ("ROOF_COVER", col_str),
     "slab": ("SLAB_FLOOR", col_str),
@@ -36,7 +34,7 @@ FIELD_MAP = {
     "garage_sqft": ("GARAGE_AREA", col_int),
     "converted_garage_sqft": ("CONVERTED_GARAGE_AREA", col_int),
     "total_addition_sqft": ("TOTAL_ADDITION_AREA", col_int),
-    "total_living_sqft": ("AREA_4_MODIFICATION", col_int),
+    "living_area_sqft": ("AREA_4_MODIFICATION", col_int),
     "garage": ("NUMBER_OF_PARKING_STALLS", col_int),
     "pool_year": ("POOL_DATE", col_int),
     "transfer_tax_amount": ("IRS_STAMP_AMOUNT", col_int),

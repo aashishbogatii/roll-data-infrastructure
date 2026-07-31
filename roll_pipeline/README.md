@@ -8,6 +8,33 @@ reads.
 Runs the same locally (dev → local disk) or on AWS Lambda (prod → S3) by flipping
 one environment variable.
 
+## Quickstart (local)
+
+Local is the default (`ENV=dev`)
+
+```powershell
+# 1. one-time: virtualenv + dependencies
+python -m venv roll_pipeline/.venv
+roll_pipeline/.venv/Scripts/pip install -r roll_pipeline/requirements.txt
+
+# 2. (optional) point at your own data dirs; else the D:/roll_data defaults apply
+$env:ROLL_SOURCE_DEV = "D:/roll_data"
+$env:ROLL_OUTPUT_DEV = "D:/roll_data/clean"
+
+# 3. build one county (the name must match a registry.yaml source)
+roll_pipeline/.venv/Scripts/python -m roll_pipeline.runner sacramento
+roll_pipeline/.venv/Scripts/python -m roll_pipeline.runner placer
+#    ...or omit the name to build every source in the registry
+roll_pipeline/.venv/Scripts/python -m roll_pipeline.runner
+
+# 4. run the tests
+roll_pipeline/.venv/Scripts/pytest -q roll_pipeline/tests
+```
+
+Each run logs `reading → read N rows → cleaned + validated → enriching → wrote`.
+Rebuild a county whenever its transform or `registry.yaml` entry changes.
+
+
 ## Layout
 
 | File | Purpose |
@@ -16,10 +43,10 @@ one environment variable.
 | `registry.yaml` | Source catalog — one entry per raw roll file. |
 | `runner.py` | Orchestrator: read → clean → validate → enrich → write, per source. |
 | `lambda_handler.py` | AWS Lambda entrypoint (`handler`). |
-| `transforms/` | Per-county adapters: `sacramento_secured.py`, `sacramento_unsecured.py`, `sacramento_characteristics.py`. |
+| `transforms/` | Per-county adapters: `sacramento_secured.py`, `sacramento_unsecured.py`, `sacramento_characteristics.py`, `sacramento_transfers.py`, `placer_secured.py`. |
 | `parsers.py` | Vectorized column transforms (`col_int`, `col_float`, `col_str`, …). |
 | `normalize.py` | Shared APN + address normalization. |
-| `enrich.py` | `enrich_geometry` (lat/long/geometry) and `enrich_characteristics` (building fields), both by APN. |
+| `enrich.py` | `enrich_geometry` (lat/long/geometry), `enrich_characteristics` (building fields), and `enrich_transfers` (latest sale date/price), all by APN. |
 | `writer.py` | Writes the cleaned DataFrame to partitioned parquet. |
 | `requirements.txt` | Runtime dependencies. |
 | `Dockerfile` | Container image for running the ingest on Lambda. |
@@ -56,9 +83,13 @@ The runner loops every source in `registry.yaml` and takes each one end to end:
      (WKB → GeoJSON) from the parcel parquet.
    - `enrich_characteristics()` cleans the raw characteristics file in memory
      (`sacramento_characteristics.clean`) and LEFT-joins its building fields
-     (`bedrooms`, `bathrooms`, `total_living_sqft`, …) — **adding only columns
+     (`bedrooms`, `bathrooms`, `living_area_sqft`, …) — **adding only columns
      not already on the roll**, so it never overwrites roll fields. Nothing is
      persisted for characteristics; it's read, cleaned, and joined on the fly.
+   - `enrich_transfers()` cleans the two-year transfer list in memory
+     (`sacramento_transfers.clean`) and LEFT-joins the latest pre-cutoff sale
+     per parcel (`last_sale_date`, `last_sale_price`, `is_group_sale`,
+     `sale_group_id`, …), same add-only, join-on-the-fly pattern.
 5. **Write** — `write_parquet()` sorts by `apn_normalized` and writes
    `OUTPUT_ROOT/<county>/<year>/<name>.parquet` in ~100k-row row groups, so a
    keyed lookup reads one row group instead of the whole file.
@@ -85,9 +116,14 @@ sources:
       path: sacramento/2026/Characteristics_roll_2026.xlsx
       format: xlsx
       transform: sacramento_characteristics
+    transfers:                            # optional: latest sale per parcel, joined in memory
+      path: sacramento/2026/Two-Year Transfer List 07.01.26.xlsx
+      format: xlsx
+      transform: sacramento_transfers
 ```
 
-`parcels` and `characteristics` are optional and apply to the secured roll.
+`parcels`, `characteristics`, and `transfers` are optional and apply to the
+secured roll.
 
 ## Add a new source
 

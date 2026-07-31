@@ -13,6 +13,10 @@ _SUFFIX = {
     "PLACE": "PL", "TERRACE": "TER", "PARKWAY": "PKWY", "HIGHWAY": "HWY",
     "TRAIL": "TRL", "SQUARE": "SQ",
     "WY": "WAY", "BL": "BLVD", "BLV": "BLVD", "AV": "AVE",
+    # Placer StreetType abbreviations -> canonical (TR = Trail here, since
+    # Placer uses TE for Terrace separately).
+    "CI": "CIR", "LP": "LOOP", "PW": "PKWY", "TR": "TRL", "TE": "TER",
+    "PZ": "PLZ",
 }
 _DIRECTIONAL = {
     "NORTH": "N", "SOUTH": "S", "EAST": "E", "WEST": "W",
