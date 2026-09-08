@@ -1,4 +1,5 @@
-"""Enrich a cleaned roll with parcel geometry and building characteristics, by APN."""
+"""Enrich a cleaned roll: geometry, characteristics and sales by APN; tax rates
+by tax rate area."""
 
 from __future__ import annotations
 
@@ -25,10 +26,10 @@ def enrich_geometry(
     return df.merge(parcels, on=key, how="left")
 
 
-def _left_join_by_apn(
+def _left_join(
     df: pd.DataFrame, other: pd.DataFrame, key: str
 ) -> pd.DataFrame:
-    """LEFT JOIN `other` onto the roll by APN, adding only columns the roll does
+    """LEFT JOIN `other` onto the roll on `key`, adding only columns the roll does
     not already have (so an enrichment never overwrites a roll field)."""
     other = other.drop_duplicates(key)
     cols = [c for c in other.columns if c == key or c not in df.columns]
@@ -39,7 +40,7 @@ def enrich_characteristics(
     df: pd.DataFrame, characteristics: pd.DataFrame, *, key: str = "apn_normalized"
 ) -> pd.DataFrame:
     """LEFT JOIN cleaned building characteristics onto the roll by APN."""
-    return _left_join_by_apn(df, characteristics, key)
+    return _left_join(df, characteristics, key)
 
 
 def enrich_transfers(
@@ -52,4 +53,15 @@ def enrich_transfers(
     expected shape, not a failed join. The transfers transform has already
     reduced to one sale per parcel, so the dedup here is only a safety net.
     """
-    return _left_join_by_apn(df, transfers, key)
+    return _left_join(df, transfers, key)
+
+
+def enrich_tax_rates(
+    df: pd.DataFrame, rates: pd.DataFrame, *, key: str = "tax_rate_area"
+) -> pd.DataFrame:
+    """LEFT JOIN the TRA total rate + components onto the roll by tax rate area.
+
+    Joins on tax_rate_area (not APN): every parcel in a tax rate area shares
+    that area's rate, so this is a small lookup fanned out across the roll.
+    """
+    return _left_join(df, rates, key)

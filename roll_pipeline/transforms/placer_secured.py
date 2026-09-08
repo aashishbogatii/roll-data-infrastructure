@@ -208,6 +208,9 @@ def build(source_root: str, roll_year: int) -> pd.DataFrame:
         .map({"1": True, "0": False}).astype("boolean")
     )
 
+    # tax rate area (6-digit here; Sacramento's is 5) -> the levy zone
+    out["tax_rate_area"] = col_str(am["TRA"])
+
     # lot size: Acres is only populated for larger/rural parcels; 0 = unrecorded
     acres = col_float(am["Acres"])
     out["lot_acres"] = acres.where(acres > 0)

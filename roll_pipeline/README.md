@@ -43,7 +43,7 @@ Rebuild a county whenever its transform or `registry.yaml` entry changes.
 | `registry.yaml` | Source catalog — one entry per raw roll file. |
 | `runner.py` | Orchestrator: read → clean → validate → enrich → write, per source. |
 | `lambda_handler.py` | AWS Lambda entrypoint (`handler`). |
-| `transforms/` | Per-county adapters: `sacramento_secured.py`, `sacramento_unsecured.py`, `sacramento_characteristics.py`, `sacramento_transfers.py`, `placer_secured.py`. |
+| `transforms/` | Per-county adapters: `sacramento_secured.py`, `sacramento_unsecured.py`, `sacramento_characteristics.py`, `sacramento_transfers.py`, `placer_secured.py`, and `tra_rates.py` (shared by both counties). |
 | `parsers.py` | Vectorized column transforms (`col_int`, `col_float`, `col_str`, …). |
 | `normalize.py` | Shared APN + address normalization. |
 | `enrich.py` | `enrich_geometry` (lat/long/geometry), `enrich_characteristics` (building fields), and `enrich_transfers` (latest sale date/price), all by APN. |

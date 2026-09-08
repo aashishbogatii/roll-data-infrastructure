@@ -1,6 +1,8 @@
 """Golden tests: real-shaped raw rows -> expected cleaned output. Locks the
 source->target mapping and the derived columns."""
 
+import json
+
 import pandas as pd
 import pytest
 
@@ -9,6 +11,7 @@ from roll_pipeline.transforms import sacramento_characteristics as C
 from roll_pipeline.transforms import sacramento_secured as S
 from roll_pipeline.transforms import sacramento_transfers as T
 from roll_pipeline.transforms import sacramento_unsecured as U
+from roll_pipeline.transforms import tra_rates as R
 
 # every raw column C.clean() reads: the FIELD_MAP sources + PARCEL_NUMBER
 _CHAR_COLUMNS = [src for src, _ in C.FIELD_MAP.values()] + list(C._DERIVED_SOURCES)
@@ -52,6 +55,15 @@ def test_sacramento_secured_golden_row():
 def test_sacramento_secured_header_drift_raises():
     with pytest.raises(ValueError, match="header drift"):
         S.clean(pd.DataFrame([{"WRONG": "x"}]), roll_year=2025)
+
+
+# secured router: residential conversion (AD) is units-checked, not always cma
+def test_sacramento_secured_residential_conversion_units():
+    assert S._valuation_approach("AD002A") == "cma"      # 2 units
+    assert S._valuation_approach("AD004A") == "cma"      # 4 units
+    assert S._valuation_approach("AD005A") == "income"   # 5 units
+    assert S._valuation_approach("AD014A") == "income"   # 14 units
+    assert S._valuation_approach("A1A00A") == "cma"      # single family, unchanged
 
 
 # unsecured roll: raw row -> keys, address assembled from parts, values
@@ -220,7 +232,7 @@ def test_sacramento_transfers_drops_unpriced_and_sentinel():
 
 _AM_COLS = ["AsmtStatus", "Asmt", "FeeParcel", "Community", "StreetDirection",
             "Street", "StreetType", "StreetNum", "SpaceApt", "Zip",
-            "AssesseeName", "LandUse1", "TaxabilityFull", "Acres",
+            "AssesseeName", "LandUse1", "TaxabilityFull", "Acres", "TRA",
             "CurrentDocDate"]
 _PC_COLS = ["Asmt", "YearBuilt", "BuildingSF", "GarageSF", "Bedrooms", "Baths",
             "HalfBaths", "Pool", "Heating", "Cooling", "BuildingType", "Units",
@@ -240,7 +252,8 @@ def _am(*rows):
     base = dict(AsmtStatus="A", Community="AUB", StreetDirection="",
                 Street="MAIN", StreetType="ST", StreetNum="100", SpaceApt="",
                 Zip="95603", AssesseeName="DOE JOHN", LandUse1="01",
-                TaxabilityFull="NM", Acres="", CurrentDocDate="2020-01-01")
+                TaxabilityFull="NM", Acres="", TRA="005001",
+                CurrentDocDate="2020-01-01")
     filled = []
     for r in rows:
         d = {**base, **r}
@@ -315,6 +328,7 @@ def test_placer_golden_row(monkeypatch):
     assert r["land_value"] == 200000
     assert r["total_assessed_value"] == 500000
     assert r["homeowner_exemption"] == 7000
+    assert r["tax_rate_area"] == "005001"   # kept as-is: 6 digits in Placer
     assert r["on_tax_roll"] == True
     assert r["living_area_sqft"] == 1152
     assert r["bedrooms"] == 3
@@ -448,3 +462,42 @@ def test_sacramento_transfers_validate_flags_post_cutoff():
     out["last_sale_date"] = pd.Timestamp("2026-03-01")
     with pytest.raises(ValueError, match="cutoff"):
         T.validate(out)
+
+
+# ---------------------------------------------------------------- tra rates
+
+def _rates(*rows):
+    base = dict(county="X", fiscal_year="2025-26", is_unitary="False")
+    return pd.DataFrame([{**base, **r} for r in rows])
+
+
+# tra rates: the dashed published TRA reduces to the roll's digit-only key,
+# 5-wide for Sacramento and 6-wide for Placer
+def test_tra_rates_key_strips_dash_for_both_counties():
+    out = R.clean(_rates(
+        {"tra": "54-319", "total_rate_pct": "1.1687", "components": "*A=1.1687"},
+        {"tra": "005-001", "total_rate_pct": "1.029901", "components": "*A=1.029901"},
+    ))
+    assert list(out["tax_rate_area"]) == ["54319", "005001"]
+    assert list(out.columns) == ["tax_rate_area", "total_tax_rate_pct",
+                                 "tax_rate_components"]
+
+
+# tra rates: components become JSON levies, the leading '*' stripped
+def test_tra_rates_components_to_json():
+    out = R.clean(_rates({"tra": "001-001", "total_rate_pct": "1.024754",
+                          "components": "*COUNTY WIDE 1%=1.000000; "
+                                        "SIERRA COLL SFID 4 GOB=0.005316"}))
+    assert json.loads(out.iloc[0]["tax_rate_components"]) == [
+        {"name": "COUNTY WIDE 1%", "rate_pct": 1.0},
+        {"name": "SIERRA COLL SFID 4 GOB", "rate_pct": 0.005316},
+    ]
+
+
+# tra rates validate: components that do not add up to the published total are
+# a parse regression, not a source gap, once they are widespread
+def test_tra_rates_validate_flags_components_not_summing():
+    out = R.clean(_rates({"tra": "001-001", "total_rate_pct": "1.024754",
+                          "components": "*COUNTY WIDE 1%=1.000000"}))
+    with pytest.raises(ValueError, match="components != the total"):
+        R.validate(out)

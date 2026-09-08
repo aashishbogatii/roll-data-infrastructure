@@ -132,6 +132,23 @@ def run_source(entry: dict, out_root: str) -> str:
             name, len(xfer_df.columns) - 1, f"{matched:,}", f"{len(df):,}",
         )
 
+    rates = entry.get("tax_rates")
+    if rates:
+        from .enrich import enrich_tax_rates
+
+        rates_src = _resolve(rates["path"])
+        logger.info("[%s] tax rates: reading %s", name, rates_src)
+        rates_tf = get_transform(rates["transform"])
+        rates_df = rates_tf.clean(_read_raw(rates, rates_src))
+        rates_tf.validate(rates_df)
+        df = enrich_tax_rates(df, rates_df)
+        matched = df["total_tax_rate_pct"].notna().sum()
+        logger.info(
+            "[%s] tax rates: joined %d fields for %s TRAs, %s of %s parcels rated",
+            name, len(rates_df.columns) - 1, f"{len(rates_df):,}",
+            f"{matched:,}", f"{len(df):,}",
+        )
+
     dest = write_parquet(
         df,
         out_root,

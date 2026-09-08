@@ -61,10 +61,12 @@ def _land_use_desc(code: object) -> str | None:
 
 
 # Land-use prefixes by valuation approach: 1-4 unit residential -> cma;
-# apartments/lodging and B/C/D/F/G commercial majors -> income.
-_CMA_PREFIXES = frozenset({"A1", "A2", "A3", "A4", "AT", "AD"})
+# apartments/lodging and B/C/D/F/G commercial majors -> income. AD (residential
+# conversion) is units-dependent, so it sits in the income set (units-checked:
+# <=4 units -> cma, 5+ -> income).
+_CMA_PREFIXES = frozenset({"A1", "A2", "A3", "A4", "AT"})
 _INCOME_PREFIXES = frozenset({
-    "AE", "AF", "AG", "AH", "AJ", "AK", "AL", "AM", "AN", "AR",
+    "AD", "AE", "AF", "AG", "AH", "AJ", "AK", "AL", "AM", "AN", "AR",
 })
 _INCOME_MAJORS = frozenset({"B", "C", "D", "F", "G"})
 _SPECIAL_MAJORS = frozenset({"H", "E", "M", "W"})

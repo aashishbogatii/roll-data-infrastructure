@@ -17,6 +17,10 @@ sources:
       path: sacramento/2026/Two-Year Transfer List 07.01.26.xlsx
       format: xlsx
       transform: sacramento_transfers
+    tax_rates:
+      path: sacramento/2026/sacramento_tra_rates_2025_26.csv
+      format: csv
+      transform: tra_rates
 
   - name: sacramento_2026_unsecured
     roll_year: 2026
@@ -29,3 +33,9 @@ sources:
     path: placer/2026
     transform: placer_secured
     parcels: placer/2026/placer_parcels.parquet
+    # built from the county's published rate schedule PDF by
+    # scripts/placer_tra_rates_from_pdf.py
+    tax_rates:
+      path: placer/2026/placer_tra_rates_2025_26.csv
+      format: csv
+      transform: tra_rates
